@@ -1,42 +1,4 @@
 const WebSocket = require('ws');
-const admin     = require('firebase-admin');
-const fs        = require('fs');
-
-// ── FIREBASE ─────────────────────────────────────────────────────────────
-let serviceAccount = null;
-
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    try {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        log('Firebase', 'Loaded credentials from FIREBASE_SERVICE_ACCOUNT env');
-    } catch (e) {
-        log('Firebase', `⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT env: ${e.message}`);
-    }
-} else if (fs.existsSync('./serviceAccountKey.json')) {
-    try {
-        serviceAccount = require('./serviceAccountKey.json');
-        log('Firebase', 'Loaded credentials from ./serviceAccountKey.json');
-    } catch (e) {
-        log('Firebase', `⚠️ Failed to read ./serviceAccountKey.json: ${e.message}`);
-    }
-}
-
-let ref = null;
-if (serviceAccount) {
-    try {
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-            databaseURL: "https://kilvish-d1705-default-rtdb.firebaseio.com"
-        });
-        const db = admin.database();
-        ref = db.ref("server_config");
-        log('Firebase', '✓ Firebase initialized successfully');
-    } catch (e) {
-        log('Firebase', `⚠️ Firebase init error: ${e.message}`);
-    }
-} else {
-    log('Firebase', '⚠️ Running without Firebase credentials. Pass FIREBASE_SERVICE_ACCOUNT env or serviceAccountKey.json to enable auto-URL push.');
-}
 
 // ── STATE ────────────────────────────────────────────────────────────────
 let clientSocket = null;
@@ -83,19 +45,6 @@ function isAdminOnline() {
     return adminSocket && adminSocket.readyState === WebSocket.OPEN;
 }
 
-/**
- * Write the public server URL to Firebase so Client and Admin apps auto-connect.
- */
-function updateFirebaseURL(url) {
-    if (!ref) {
-        log('Firebase', '⚠️ Firebase ref not ready — cannot push URL');
-        return;
-    }
-    ref.update({ url, updatedAt: Date.now() })
-       .then(() => log('Firebase', `✓ URL pushed to Firebase → ${url}`))
-       .catch(err => log('Firebase', `ERROR pushing URL: ${err.message}`));
-}
-
 // ── SERVER ───────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
 const wss  = new WebSocket.Server({ port: PORT }, () => {
@@ -136,9 +85,8 @@ const wss  = new WebSocket.Server({ port: PORT }, () => {
         console.log(C + `  [+] Server URL : ${serverUrl}`);
         console.log(`  [+] WSS URL    : ${wsUrl}` + R);
         console.log(G + "  ─────────────────────────────────────────\n" + R);
-        updateFirebaseURL(serverUrl);
     } else {
-        log('Info', 'Running without auto URL update — apps will connect via existing Firebase URL');
+        log('Server', `Zero-Knowledge Blind Relay running on port ${PORT}`);
     }
 });
 
